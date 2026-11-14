@@ -5,12 +5,14 @@ client = genai.Client(http_options={"timeout": 60000})
 MODEL = "gemini-3.5-flash-lite"
 MAX_STEPS = 5
 
+
 def calculator(a, b):
     return a * b
 
 
 def get_time():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
 
 def read_file(filename):
     try:
@@ -19,60 +21,61 @@ def read_file(filename):
     except FileNotFoundError:
         return "错误：找不到文件 " + filename
 
+
 def write_note(filename, content):
     with open(filename, "a", encoding="utf-8") as f:
-        f.write(content+"\n")
+        f.write(content + "\n")
     return "已写入" + filename
 
 
-calculator_tool ={
-    "type":"function",
-    "name":"calculator",
-    "description":"计算两个数相乘的结果。需要做乘法时使用。",
-    "parameters":{
-        "type":"object",
-        "properties":{
-            "a":{"type":"number","description":"第一个数"},
-            "b":{"type":"number","description":"第二个数"},
+calculator_tool = {
+    "type": "function",
+    "name": "calculator",
+    "description": "计算两个数相乘的结果。需要做乘法时使用。",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "a": {"type": "number", "description": "第一个数"},
+            "b": {"type": "number", "description": "第二个数"},
         },
-    "required":["a", "b"],
+        "required": ["a", "b"],
     },
 }
 
 
 get_time_tool = {
-    "type":"function",
-    "name":"get_time",
-    "description":"获取当前的日期和时间。用户问现在几点、今天几号时使用。",
-    "parameters":{"type":"object","properties":{}},
+    "type": "function",
+    "name": "get_time",
+    "description": "获取当前的日期和时间。用户问现在几点、今天几号时使用。",
+    "parameters": {"type": "object", "properties": {}},
 }
 
-read_file_tool ={
-    "type":"function",
-    "name":"read_file",
-    "description":"读取文件。用户要求读文件时使用。",
-    "parameters":{
-        "type":"object",
-        "properties":{
-            "filename":{"type":"string","description":"文件名"},
+read_file_tool = {
+    "type": "function",
+    "name": "read_file",
+    "description": "读取文件。用户要求读文件时使用。",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "filename": {"type": "string", "description": "文件名"},
         },
-    "required":["filename"],
+        "required": ["filename"],
     },
 }
 
 write_note_tool = {
-    "type":"function",
-    "name":"write_note",
-    "description":"把一段文字追加在本地文件的末尾（不会覆盖原始内容）。用户要求记录、保存、写入笔记时使用。",
-    "parameters":{
-        "type":"object",
-        "properties":{
-            "filename":{"type":"string", "description":"文件名"},
-            "content":{"type":"string","description":"写入的内容"},
+    "type": "function",
+    "name": "write_note",
+    "description": "把一段文字追加在本地文件的末尾（不会覆盖原始内容）。用户要求记录、保存、写入笔记时使用。",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "filename": {"type": "string", "description": "文件名"},
+            "content": {"type": "string", "description": "写入的内容"},
         },
-    "required":["filename","content"],
+        "required": ["filename", "content"],
     },
-} 
+}
 
 ALL_TOOLS = [calculator_tool, get_time_tool, read_file_tool, write_note_tool]
 
@@ -81,12 +84,13 @@ REACT_PROMPT = """你是一个会使用工具的助手。
 格式：想法：……
 拿到工具结果后，再写一句想法，判断信息是否足够；足够了就给出最终答案。"""
 
+
 def run_tool(name, args):
-    if name =="calculator":
+    if name == "calculator":
         return calculator(args["a"], args["b"])
-    elif name =="get_time":
+    elif name == "get_time":
         return get_time()
-    elif name =="read_file":
+    elif name == "read_file":
         return read_file(args["filename"])
     elif name == "write_note":
         return write_note(args["filename"], args["content"])
@@ -97,12 +101,13 @@ def run_tool(name, args):
 history = []
 
 while True:
-
-    question = input("你：") 
+    question = input("你：")
     if question == "退出":
         break
-    history.append({"type":"user_input","content":[{"type":"text","text":question}]})
-        
+    history.append(
+        {"type": "user_input", "content": [{"type": "text", "text": question}]}
+    )
+
     step_count = 0
     finished = False
 
@@ -111,7 +116,12 @@ while True:
         print("\n=====第", step_count, "轮 =====")
 
         reply = client.interactions.create(
-            model=MODEL, input=history, tools=ALL_TOOLS,store=False, generation_config={"thinking_level": "minimal"}, system_instruction=REACT_PROMPT,
+            model=MODEL,
+            input=history,
+            tools=ALL_TOOLS,
+            store=False,
+            generation_config={"thinking_level": "minimal"},
+            system_instruction=REACT_PROMPT,
         )
 
         used_tool = False
@@ -128,17 +138,19 @@ while True:
                 for s in step.summary:
                     print("【思考】", s.text)
 
-            if step.type =="function_call":
+            if step.type == "function_call":
                 used_tool = True
                 print("【调用工具】", step.name, step.arguments)
                 result = run_tool(step.name, step.arguments)
-                print("【工具结果】",result)
-                history.append({
-                    "type":"function_result",
-                    "name":step.name,
-                    "call_id":step.id,
-                    "result":str(result),
-                })
+                print("【工具结果】", result)
+                history.append(
+                    {
+                        "type": "function_result",
+                        "name": step.name,
+                        "call_id": step.id,
+                        "result": str(result),
+                    }
+                )
 
         if not used_tool:
             print("【最终回答】:", reply.output_text)
